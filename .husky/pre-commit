@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+exec >/dev/tty 2>&1
+
+npx lint-staged 

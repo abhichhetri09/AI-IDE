@@ -1,36 +1,137 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI-Integrated IDE
+
+A powerful, modern IDE with integrated AI capabilities, built with Next.js, React, and TypeScript.
+
+## Features
+
+### Core IDE Features
+
+- 🎨 Monaco Editor with syntax highlighting and autocompletion
+- 📁 File Explorer with drag-and-drop support
+- 🔍 Search functionality with regex support
+- 🖥️ Integrated Terminal with full shell support
+- 🐛 Advanced Debugger with breakpoint management
+- 🔄 Git integration with visual diff viewer
+- ✨ Code formatting with Prettier
+- 🚨 Linting with ESLint
+- 📝 Language Server Protocol support
+
+### AI Features
+
+- 💬 AI Chat Assistant powered by Ollama
+- 🤖 Code generation and completion
+- 📚 Code explanation and documentation
+- 🔄 Code refactoring suggestions
+- 🎯 Context-aware code analysis
+
+### Developer Experience
+
+- 🎨 Dark/Light theme support
+- ⚡ Fast and responsive UI
+- 🔌 Plugin system (coming soon)
+- 👥 Multi-user support (coming soon)
+- 🌐 Real-time collaboration (coming soon)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- Git
+- Ollama (for AI features)
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/yourusername/ai-ide.git
+cd ai-ide
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Set up Ollama:
+
+```bash
+# Install Ollama (if not already installed)
+curl https://ollama.ai/install.sh | sh
+
+# Pull the CodeLlama model
+ollama pull codellama
+```
+
+4. Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The IDE will be available at `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configuration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### ESLint
 
-## Learn More
+The project uses ESLint with TypeScript support. Configuration can be found in `.eslintrc.json`.
 
-To learn more about Next.js, take a look at the following resources:
+### Prettier
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Code formatting is handled by Prettier. Configuration can be found in `.prettierrc`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Git Hooks
 
-## Deploy on Vercel
+Pre-commit hooks are set up using Husky and lint-staged to ensure code quality:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Runs ESLint on staged files
+- Formats code with Prettier
+- Runs TypeScript type checking
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Architecture
+
+### Frontend
+
+- Next.js 14 with App Router
+- React for UI components
+- TypeScript for type safety
+- Tailwind CSS for styling
+- Monaco Editor for code editing
+- XTerm.js for terminal emulation
+
+### Backend
+
+- Next.js API routes
+- Language Server Protocol integration
+- Git integration via simple-git
+- Ollama integration for AI features
+
+### AI Integration
+
+- Local model execution via Ollama
+- Context-aware code analysis
+- Real-time code suggestions
+- Natural language code generation
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- [Monaco Editor](https://microsoft.github.io/monaco-editor/)
+- [XTerm.js](https://xtermjs.org/)
+- [Ollama](https://ollama.ai/)
+- [Next.js](https://nextjs.org/)
+- [TypeScript](https://www.typescriptlang.org/)
