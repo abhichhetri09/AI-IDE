@@ -15,6 +15,7 @@ A powerful, modern IDE with integrated AI capabilities, built with Next.js, Reac
 - ✨ Code formatting with Prettier
 - 🚨 Linting with ESLint
 - 📝 Language Server Protocol support
+- 🔨 Built-in compilation and execution support
 
 ### AI Features
 
@@ -24,54 +25,94 @@ A powerful, modern IDE with integrated AI capabilities, built with Next.js, Reac
 - 🔄 Code refactoring suggestions
 - 🎯 Context-aware code analysis
 
-### Developer Experience
+### Supported Languages
 
-- 🎨 Dark/Light theme support
-- ⚡ Fast and responsive UI
-- 🔌 Plugin system (coming soon)
-- 👥 Multi-user support (coming soon)
-- 🌐 Real-time collaboration (coming soon)
+The IDE includes built-in support for compiling and running:
 
-## Getting Started
+- Python
+- JavaScript/TypeScript
+- Java
+- C/C++
+- Go
+- Rust
+- PHP
+- Ruby
+- Shell scripts
+- HTML/CSS
+- SQL
+- YAML/XML
+- Markdown
 
-### Prerequisites
+## Running as a Standalone Application
 
-- Node.js 18+
-- Git
-- Ollama (for AI features)
+### Using Docker (Recommended)
 
-### Installation
+1. Install Docker and Docker Compose on your system
+2. Clone the repository:
 
-1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/ai-ide.git
+   cd ai-ide
+   ```
 
-```bash
-git clone https://github.com/yourusername/ai-ide.git
-cd ai-ide
-```
+3. Start the application:
+   ```bash
+   docker-compose up -d
+   ```
 
-2. Install dependencies:
+The IDE will be available at `http://localhost:3000` with all necessary compilers and tools pre-installed.
 
-```bash
-npm install
-```
+### Manual Installation
 
-3. Set up Ollama:
+1. Prerequisites:
 
-```bash
-# Install Ollama (if not already installed)
-curl https://ollama.ai/install.sh | sh
+   - Node.js 18+
+   - Git
 
-# Pull the CodeLlama model
-ollama pull codellama
-```
+2. Clone and install dependencies:
 
-4. Start the development server:
+   ```bash
+   git clone https://github.com/yourusername/ai-ide.git
+   cd ai-ide
+   npm install
+   ```
 
-```bash
-npm run dev
-```
+3. Install language support:
 
-The IDE will be available at `http://localhost:3000`.
+   ```bash
+   # Install Python
+   python3 -m pip install --user pylint black
+
+   # Install TypeScript
+   npm install -g typescript ts-node
+
+   # Install Java
+   # Download and install JDK from https://adoptium.net/
+
+   # Install Go
+   # Download and install from https://golang.org/
+
+   # Install Rust
+   # Install from https://rustup.rs/
+
+   # Install PHP
+   # Download from https://www.php.net/
+
+   # Install Ruby
+   # Download from https://www.ruby-lang.org/
+   ```
+
+4. Start the application:
+   ```bash
+   npm run dev
+   ```
+
+## Using the Built-in Compiler
+
+1. Open a file in the editor
+2. Write your code
+3. Use the "Run" menu or press F5 to compile and execute
+4. View output in the integrated terminal
 
 ## Configuration
 

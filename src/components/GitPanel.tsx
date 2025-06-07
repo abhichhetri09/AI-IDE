@@ -25,7 +25,11 @@ interface GitResponse {
   status?: GitStatus;
 }
 
-export default function GitPanel() {
+interface GitPanelProps {
+  workspaceId: string;
+}
+
+export default function GitPanel({ workspaceId }: GitPanelProps) {
   const [files, setFiles] = useState<GitFile[]>([]);
   const [branch, setBranch] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -164,10 +168,13 @@ export default function GitPanel() {
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
         <div className="flex items-center space-x-2">
-          <span className="text-sm font-medium">Current Branch:</span>
+          <span className="text-sm font-medium text-[var(--text-primary)]">Current Branch:</span>
           <span className="text-sm text-[var(--text-secondary)]">{branch}</span>
         </div>
-        <button onClick={fetchStatus} className="p-1 hover:bg-[var(--bg-lighter)] rounded">
+        <button
+          onClick={fetchStatus}
+          className="p-1 hover:bg-[var(--bg-lighter)] rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+        >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
@@ -190,11 +197,11 @@ export default function GitPanel() {
               <span className="text-xs font-mono text-[var(--text-secondary)]">
                 {getFileIcon(file.status)}
               </span>
-              <span className="text-sm truncate">{file.path}</span>
+              <span className="text-sm text-[var(--text-primary)] truncate">{file.path}</span>
             </div>
             <button
               onClick={() => (file.staged ? unstageFile(file.path) : stageFile(file.path))}
-              className="opacity-0 group-hover:opacity-100 text-xs px-2 py-1 bg-[var(--bg-darker)] hover:bg-[var(--bg-darkest)] rounded"
+              className="opacity-0 group-hover:opacity-100 text-xs px-2 py-1 bg-[var(--bg-darker)] hover:bg-[var(--bg-lightest)] text-[var(--text-primary)] rounded transition-colors"
             >
               {file.staged ? "Unstage" : "Stage"}
             </button>
@@ -208,16 +215,18 @@ export default function GitPanel() {
           value={commitMessage}
           onChange={(e) => setCommitMessage(e.target.value)}
           placeholder="Commit message..."
-          className="w-full p-2 text-sm bg-[var(--bg-darker)] border border-[var(--border-color)] rounded resize-none focus:outline-none focus:border-[var(--primary)]"
+          className="w-full px-3 py-2 text-sm bg-[var(--bg-dark)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] border border-[var(--border-color)] rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)] resize-none"
           rows={3}
         />
-        <button
-          onClick={commit}
-          className="mt-2 w-full px-4 py-2 text-sm bg-[var(--primary)] text-white rounded hover:bg-[var(--primary-darker)]"
-          disabled={files.filter((f) => f.staged).length === 0 || !commitMessage.trim()}
-        >
-          Commit Changes
-        </button>
+        <div className="flex justify-end mt-2">
+          <button
+            onClick={commit}
+            disabled={!commitMessage.trim()}
+            className="px-3 py-1.5 text-sm bg-[var(--primary)] text-white rounded hover:bg-[var(--primary-dark)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Commit Changes
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -1,21 +1,11 @@
-import { useState } from "react";
-
-interface FileState {
-  path: string;
-  content: string;
-}
+import { useFile } from "@/contexts/FileContext";
 
 export function useFileOperations() {
-  const [currentFile, setCurrentFile] = useState<FileState | null>(null);
-  const [files, setFiles] = useState<FileState[]>([]);
+  const { files, currentFile, openFile: openFileFromContext, updateFileContent } = useFile();
 
   const createNewFile = () => {
-    const newFile: FileState = {
-      path: "untitled",
-      content: "",
-    };
-    setFiles([...files, newFile]);
-    setCurrentFile(newFile);
+    // This will be handled by the FileContext
+    // Implementation will be added when needed
   };
 
   const openFile = async () => {
@@ -29,14 +19,8 @@ export function useFileOperations() {
         const file = (e.target as HTMLInputElement).files?.[0];
         if (!file) return;
 
-        const content = await file.text();
-        const newFile: FileState = {
-          path: file.name,
-          content,
-        };
-
-        setFiles([...files, newFile]);
-        setCurrentFile(newFile);
+        const path = file.name;
+        await openFileFromContext(path);
       };
 
       // Trigger file picker
@@ -71,32 +55,23 @@ export function useFileOperations() {
       const newPath = window.prompt("Enter file name:", currentFile.path);
       if (!newPath) return;
 
-      const newFile: FileState = {
-        ...currentFile,
-        path: newPath,
-      };
-
-      setCurrentFile(newFile);
-      setFiles(files.map((f) => (f.path === currentFile.path ? newFile : f)));
+      // Create a new file with the same content but different path
+      await openFileFromContext(newPath);
+      if (currentFile) {
+        updateFileContent(currentFile.id, currentFile.content);
+      }
 
       // Save with new name
-      const blob = new Blob([newFile.content], { type: "text/plain" });
+      const blob = new Blob([currentFile.content], { type: "text/plain" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = newFile.path;
+      a.download = newPath;
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error saving file:", error);
     }
-  };
-
-  const updateCurrentFile = (content: string) => {
-    if (!currentFile) return;
-    const updatedFile = { ...currentFile, content };
-    setCurrentFile(updatedFile);
-    setFiles(files.map((f) => (f.path === currentFile.path ? updatedFile : f)));
   };
 
   return {
@@ -106,6 +81,5 @@ export function useFileOperations() {
     openFile,
     saveFile,
     saveFileAs,
-    updateCurrentFile,
   };
 }

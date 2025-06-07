@@ -1,21 +1,11 @@
 import { useEffect, useRef } from "react";
 
-interface MenuItemBase {
-  divider?: boolean;
-}
-
-interface ActionMenuItem extends MenuItemBase {
-  label: string;
+export interface MenuItem {
+  label?: string;
   shortcut?: string;
   onClick?: () => void;
-  divider?: false;
+  divider?: boolean;
 }
-
-interface DividerMenuItem extends MenuItemBase {
-  divider: true;
-}
-
-export type MenuItem = ActionMenuItem | DividerMenuItem;
 
 interface MenuProps {
   items: MenuItem[];
@@ -28,18 +18,26 @@ export default function Menu({ items, isOpen, onClose, position }: MenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!isOpen) return;
+
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         onClose();
       }
     }
 
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
     }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
     };
   }, [isOpen, onClose]);
 
@@ -72,7 +70,7 @@ export default function Menu({ items, isOpen, onClose, position }: MenuProps) {
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 bg-white dark:bg-gray-800 shadow-lg rounded-md py-1 min-w-[200px]"
+      className="fixed z-50 bg-[var(--bg-darker)] border border-[var(--border-color)] shadow-lg rounded-md py-1 min-w-[200px]"
       style={{
         top: position?.top ?? 0,
         left: position?.left ?? 0,
@@ -81,20 +79,18 @@ export default function Menu({ items, isOpen, onClose, position }: MenuProps) {
       {items.map((item, index) => (
         <div key={index}>
           {item.divider ? (
-            <hr className="my-1 border-gray-200 dark:border-gray-700" />
+            <hr className="my-1 border-[var(--border-color)]" />
           ) : (
             <button
-              className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex justify-between items-center group"
+              className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--bg-lighter)] text-[var(--text-primary)] flex justify-between items-center group transition-colors"
               onClick={() => {
                 item.onClick?.();
                 onClose();
               }}
             >
-              <span className="text-gray-700 dark:text-gray-200 group-hover:text-gray-900 dark:group-hover:text-white">
-                {item.label}
-              </span>
+              <span>{item.label}</span>
               {item.shortcut && (
-                <span className="ml-4 text-xs text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">
+                <span className="ml-4 text-xs text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
                   {item.shortcut}
                 </span>
               )}

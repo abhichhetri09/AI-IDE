@@ -273,7 +273,12 @@ export default function FileExplorer() {
   const getFileIcon = (item: FileItem) => {
     if (item.type === "directory") {
       return item.isOpen ? (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg
+          className="w-4 h-4 text-[var(--text-secondary)]"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -282,7 +287,12 @@ export default function FileExplorer() {
           />
         </svg>
       ) : (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg
+          className="w-4 h-4 text-[var(--text-secondary)]"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -299,26 +309,31 @@ export default function FileExplorer() {
       case "ts":
       case "tsx":
         return (
-          <svg className="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+          <svg className="w-4 h-4 text-[var(--primary)]" viewBox="0 0 24 24" fill="currentColor">
             <path d="M3 3h18v18H3V3m10.71 14.86c.66 0 1.2-.04 1.87-.36.27-.13.47-.29.74-.45l.67 1.3c-.8.6-1.84.9-3.08.9-2.62 0-4.04-1.69-4.04-4.04 0-2.31 1.29-4.17 3.7-4.17 2.35 0 3.35 1.87 3.35 3.77 0 .34-.04.6-.06.87h-5.17c.12 1.47 1.12 2.18 2.02 2.18M9.11 14.1h3.38c0-1.34-.76-2.18-1.69-2.18-1 0-1.62.87-1.69 2.18m-2.3-3.13h-.74V14c0 .92-.32 1.3-1.03 1.3-.56 0-.92-.28-1.27-.72l-.67 1.3c.54.6 1.2.91 2.02.91 1.47 0 2.62-.86 2.62-2.98v-2.84z" />
           </svg>
         );
       case "js":
       case "jsx":
         return (
-          <svg className="w-4 h-4 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
+          <svg className="w-4 h-4 text-[var(--warning)]" viewBox="0 0 24 24" fill="currentColor">
             <path d="M3 3h18v18H3V3m4.73 15.04c.4.85 1.19 1.55 2.54 1.55 1.5 0 2.53-.8 2.53-2.55v-5.78h-1.7V17c0 .86-.35 1.08-.9 1.08-.58 0-.82-.4-1.09-.87l-1.38.83m5.98-.18c.5.98 1.51 1.73 3.09 1.73 1.6 0 2.8-.83 2.8-2.36 0-1.41-.81-2.04-2.25-2.66l-.42-.18c-.73-.31-1.04-.52-1.04-1.02 0-.41.31-.73.81-.73.48 0 .8.21 1.09.73l1.31-.87c-.55-.96-1.33-1.33-2.4-1.33-1.51 0-2.48.96-2.48 2.23 0 1.38.81 2.03 2.03 2.55l.42.18c.78.34 1.24.55 1.24 1.13 0 .48-.45.83-1.15.83-.83 0-1.31-.43-1.67-1.03l-1.38.8z" />
           </svg>
         );
       case "css":
         return (
-          <svg className="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+          <svg className="w-4 h-4 text-[var(--info)]" viewBox="0 0 24 24" fill="currentColor">
             <path d="M5 3l-.65 3.34h13.59L17.5 8.5H3.92l-.66 3.33h13.59l-.76 3.81-5.48 1.81-4.75-1.81.33-1.64H2.85l-.79 4 7.85 3 9.05-3 1.2-6.03.24-1.21L21.94 3H5z" />
           </svg>
         );
       default:
         return (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg
+            className="w-4 h-4 text-[var(--text-secondary)]"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -338,86 +353,63 @@ export default function FileExplorer() {
 
   const renderFileTree = (items: FileItem[], level = 0) => {
     return items.map((item) => (
-      <div
-        key={item.path}
-        style={{ paddingLeft: `${level * 16}px` }}
-        onContextMenu={(e) => handleContextMenu(e, item)}
-        draggable
-        onDragStart={(e) => {
-          e.dataTransfer.setData("text/plain", item.path);
-          setIsDragging(true);
-        }}
-        onDragOver={(e) => {
-          if (item.type === "directory") {
-            e.preventDefault();
-            e.currentTarget.classList.add("bg-[var(--bg-darker)]");
-          }
-        }}
-        onDragLeave={(e) => {
-          e.currentTarget.classList.remove("bg-[var(--bg-darker)]");
-        }}
-        onDrop={(e) => {
-          e.currentTarget.classList.remove("bg-[var(--bg-darker)]");
-          if (item.type === "directory") {
-            handleDrop(e, item.path);
-          }
-        }}
-      >
-        <button
+      <div key={item.path} style={{ paddingLeft: `${level * 16}px` }}>
+        <div
+          className={`flex items-center py-1 px-2 hover:bg-[var(--bg-lighter)] cursor-pointer group ${
+            item.isOpen ? "bg-[var(--bg-lighter)]" : ""
+          }`}
           onClick={() =>
             item.type === "directory" ? toggleDirectory(item.path) : handleFileClick(item.path)
           }
-          className={`
-            flex items-center w-full px-2 py-1 text-sm
-            hover:bg-[var(--bg-lighter)] rounded
-            ${isDragging ? "cursor-move" : "cursor-pointer"}
-            ${item.type === "file" ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}
-          `}
+          onContextMenu={(e) => handleContextMenu(e, item)}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.add("bg-[var(--bg-lighter)]");
+          }}
+          onDragLeave={(e) => {
+            e.currentTarget.classList.remove("bg-[var(--bg-lighter)]");
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.remove("bg-[var(--bg-lighter)]");
+            handleDrop(e, item.path);
+          }}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData("text/plain", item.path);
+            setIsDragging(true);
+          }}
+          onDragEnd={() => setIsDragging(false)}
         >
           <span className="mr-2">{getFileIcon(item)}</span>
-          <span className="truncate">{item.name}</span>
-        </button>
+          <span className="text-sm text-[var(--text-primary)] truncate">{item.name}</span>
+        </div>
         {item.type === "directory" && item.isOpen && item.children && (
-          <div className="mt-1">{renderFileTree(item.children, level + 1)}</div>
+          <div>{renderFileTree(item.children, level + 1)}</div>
         )}
       </div>
     ));
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-[var(--primary)] border-t-transparent" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-4 text-[var(--error)]">
-        <svg className="w-8 h-8 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-          />
-        </svg>
-        <p className="text-sm text-center">{error}</p>
-        <button onClick={fetchFiles} className="mt-4 btn btn-primary text-sm">
-          Try Again
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <>
-      <div className="h-full overflow-y-auto p-2">{renderFileTree(files)}</div>
+    <div className="h-full overflow-auto p-2">
+      {loading ? (
+        <div className="flex items-center justify-center h-full">
+          <div className="animate-spin rounded-full h-6 w-6 border-2 border-[var(--primary)] border-t-transparent" />
+        </div>
+      ) : error ? (
+        <div className="text-[var(--error)] text-sm p-4">{error}</div>
+      ) : files.length === 0 ? (
+        <div className="text-[var(--text-secondary)] text-sm p-4">No files found</div>
+      ) : (
+        <div>{renderFileTree(files)}</div>
+      )}
       {contextMenu &&
         createPortal(
           <ContextMenu
-            {...contextMenu}
+            x={contextMenu.x}
+            y={contextMenu.y}
+            item={contextMenu.item}
             onClose={() => setContextMenu(null)}
             onNewFile={handleNewFile}
             onNewFolder={handleNewFolder}
@@ -426,6 +418,6 @@ export default function FileExplorer() {
           />,
           document.body,
         )}
-    </>
+    </div>
   );
 }

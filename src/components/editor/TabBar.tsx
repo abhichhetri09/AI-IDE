@@ -10,7 +10,7 @@ export default function TabBar() {
   }
 
   return (
-    <div className="flex h-9 bg-[#1e1e1e] border-b border-[#333]">
+    <div className="flex h-9 bg-[var(--bg-darker)] border-b border-[var(--border-color)]">
       <div className="flex-1 flex overflow-x-auto">
         {files.map((file) => {
           const isActive = currentFile?.id === file.id;
@@ -21,23 +21,28 @@ export default function TabBar() {
               key={file.id}
               className={`
                 group flex items-center min-w-[120px] max-w-[200px] px-3 py-1 
-                border-r border-[#333] cursor-pointer
-                ${isActive ? "bg-[#2d2d2d]" : "hover:bg-[#2d2d2d]"}
+                border-r border-[var(--border-color)] cursor-pointer transition-colors
+                ${isActive ? "bg-[var(--bg-lighter)]" : "hover:bg-[var(--bg-lighter)]"}
               `}
               onClick={() => setActiveFile(file.id)}
             >
-              <span className="flex-1 truncate text-sm text-gray-300">
+              <span
+                className={`flex-1 truncate text-sm ${isActive ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}
+              >
                 {fileName}
                 {file.isDirty && "*"}
               </span>
               <button
-                className="opacity-0 group-hover:opacity-100 ml-2 p-1 hover:bg-[#3d3d3d] rounded"
+                className="opacity-0 group-hover:opacity-100 ml-2 p-1 hover:bg-[var(--bg-lightest)] rounded transition-colors"
                 onClick={(e) => {
                   e.stopPropagation();
                   closeFile(file.id);
                 }}
               >
-                <X size={14} className="text-gray-400" />
+                <X
+                  size={14}
+                  className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                />
               </button>
             </div>
           );

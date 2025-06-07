@@ -12,7 +12,20 @@ const nextConfig = {
         tls: false,
       };
     }
+    config.externals.push({
+      "utf-8-validate": "commonjs utf-8-validate",
+      bufferutil: "commonjs bufferutil",
+    });
     return config;
+  },
+  // Enable WebSocket support
+  async rewrites() {
+    return [
+      {
+        source: "/api/terminal/ws",
+        destination: "/api/terminal/ws",
+      },
+    ];
   },
 };
 

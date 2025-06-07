@@ -1,22 +1,15 @@
 "use client";
 
-import { useState } from "react";
+interface ActivityBarProps {
+  activePanel: string;
+  onPanelChange: (panel: string) => void;
+}
 
-type ActivityItem = {
-  id: string;
-  icon: JSX.Element;
-  label: string;
-  panel: string;
-};
-
-export default function ActivityBar() {
-  const [activeItem, setActiveItem] = useState<string>("explorer");
-
-  const activityItems: ActivityItem[] = [
+export default function ActivityBar({ activePanel, onPanelChange }: ActivityBarProps) {
+  const activityItems = [
     {
       id: "explorer",
       label: "Explorer",
-      panel: "FileExplorer",
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -31,7 +24,6 @@ export default function ActivityBar() {
     {
       id: "search",
       label: "Search",
-      panel: "Search",
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -46,14 +38,13 @@ export default function ActivityBar() {
     {
       id: "git",
       label: "Source Control",
-      panel: "SourceControl",
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth={2}
-            d="M13 10V3L4 14h7v7l9-11h-7z"
+            d="M3 3v2h2V3H3zm0 8h2V9H3v2zm0 8h2v-2H3v2zm4-4h14v-2H7v2zm0-8h14V5H7v2zm0 4h14V9H7v2z"
           />
         </svg>
       ),
@@ -61,7 +52,6 @@ export default function ActivityBar() {
     {
       id: "debug",
       label: "Run and Debug",
-      panel: "Debug",
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -82,7 +72,6 @@ export default function ActivityBar() {
     {
       id: "extensions",
       label: "Extensions",
-      panel: "Extensions",
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -101,20 +90,34 @@ export default function ActivityBar() {
       {activityItems.map((item) => (
         <button
           key={item.id}
-          onClick={() => setActiveItem(item.id)}
-          className={`activity-bar-item mb-2 rounded ${
-            activeItem === item.id ? "activity-bar-item-active" : ""
-          }`}
+          onClick={() => onPanelChange(item.id)}
+          className={`
+            p-2 mb-2 rounded transition-colors relative group
+            text-[var(--text-secondary)] hover:text-[var(--text-primary)]
+            hover:bg-[var(--bg-lighter)]
+            ${activePanel === item.id ? "text-[var(--text-primary)] bg-[var(--bg-lighter)]" : ""}
+          `}
           title={item.label}
         >
           {item.icon}
+          {/* Indicator bar */}
+          {activePanel === item.id && (
+            <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-[var(--primary)]" />
+          )}
+          {/* Tooltip */}
+          <div className="absolute left-14 top-1/2 -translate-y-1/2 px-2 py-1 bg-[var(--bg-darker)] rounded text-xs whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+            {item.label}
+          </div>
         </button>
       ))}
 
       <div className="flex-1" />
 
       {/* Bottom items */}
-      <button className="activity-bar-item mb-2" title="Account">
+      <button
+        className="p-2 mb-2 rounded transition-colors relative group text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-lighter)]"
+        title="Account"
+      >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
@@ -123,6 +126,10 @@ export default function ActivityBar() {
             d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
           />
         </svg>
+        {/* Tooltip */}
+        <div className="absolute left-14 top-1/2 -translate-y-1/2 px-2 py-1 bg-[var(--bg-darker)] rounded text-xs whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+          Account Settings
+        </div>
       </button>
     </div>
   );

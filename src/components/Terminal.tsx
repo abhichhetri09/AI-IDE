@@ -1,333 +1,213 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Terminal as XTerm } from "xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { SearchAddon } from "@xterm/addon-search";
 import { WebglAddon } from "@xterm/addon-webgl";
-import { SerializeAddon } from "@xterm/addon-serialize";
+import { SearchAddon } from "@xterm/addon-search";
+import { useTheme } from "@/hooks/useTheme";
+import "xterm/css/xterm.css";
 
-interface CommandResult {
-  output: string;
-  error?: string;
+declare global {
+  interface Window {
+    electronAPI?: {
+      createTerminal: () => Promise<number>;
+      onTerminalData: (callback: (event: any, data: string) => void) => void;
+      writeTerminal: (pid: number, data: string) => void;
+      resizeTerminal: (pid: number, cols: number, rows: number) => void;
+    };
+  }
 }
 
 export default function Terminal() {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const searchAddonRef = useRef<SearchAddon | null>(null);
-  const webglAddonRef = useRef<WebglAddon | null>(null);
-  const serializeAddonRef = useRef<SerializeAddon | null>(null);
-  const [isSearchVisible, setIsSearchVisible] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [commandHistory, setCommandHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [currentCommand, setCurrentCommand] = useState("");
-  const [isTerminalReady, setIsTerminalReady] = useState(false);
-  const [currentDirectory, setCurrentDirectory] = useState(process.cwd());
+  const wsRef = useRef<WebSocket | null>(null);
+  const { theme } = useTheme();
 
-  // Initialize terminal
-  useEffect(() => {
-    if (!terminalRef.current || xtermRef.current || typeof window === "undefined") return;
-
-    const initializeTerminal = async () => {
+  // Cleanup function
+  const cleanup = () => {
+    if (xtermRef.current) {
       try {
+        xtermRef.current.dispose();
+      } catch (e) {
+        console.warn("Error disposing terminal:", e);
+      }
+      xtermRef.current = null;
+    }
+
+    if (wsRef.current) {
+      try {
+        if (wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.close();
+        }
+      } catch (e) {
+        console.warn("Error closing WebSocket:", e);
+      }
+      wsRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    let resizeObserver: ResizeObserver | null = null;
+
+    const initTerminal = async () => {
+      if (!terminalRef.current || xtermRef.current || !mounted) return;
+
+      try {
+        // Wait for the container to be properly sized
+        const { clientWidth, clientHeight } = terminalRef.current;
+        if (clientWidth === 0 || clientHeight === 0) {
+          requestAnimationFrame(initTerminal);
+          return;
+        }
+
+        // Initialize xterm.js
         const term = new XTerm({
-          fontFamily: "JetBrains Mono, monospace",
+          fontFamily: "'JetBrains Mono', monospace",
           fontSize: 14,
-          theme: {
-            background: "var(--bg-darker)",
-            foreground: "var(--text-primary)",
-            cursor: "var(--text-primary)",
-            selectionBackground: "var(--selection)",
-            selectionForeground: "var(--text-primary)",
-          },
+          lineHeight: 1.2,
           cursorBlink: true,
-          cursorStyle: "bar",
-          allowTransparency: true,
-          scrollback: 10000,
           allowProposedApi: true,
+          rows: Math.floor(clientHeight / 17), // Approximate row height
+          cols: Math.floor(clientWidth / 9), // Approximate column width
+          theme:
+            theme === "dark"
+              ? {
+                  background: "#1a1b26",
+                  foreground: "#c0caf5",
+                  cursor: "#c0caf5",
+                  selectionBackground: "#515c7e40",
+                }
+              : {
+                  background: "#ffffff",
+                  foreground: "#1e293b",
+                  cursor: "#1e293b",
+                  selectionBackground: "#3b82f620",
+                },
         });
 
-        xtermRef.current = term;
-
-        // Initialize addons
+        // Add addons
         const fitAddon = new FitAddon();
-        const searchAddon = new SearchAddon();
         const webLinksAddon = new WebLinksAddon();
-        const serializeAddon = new SerializeAddon();
+        const searchAddon = new SearchAddon();
 
         term.loadAddon(fitAddon);
-        term.loadAddon(searchAddon);
         term.loadAddon(webLinksAddon);
-        term.loadAddon(serializeAddon);
+        term.loadAddon(searchAddon);
 
-        fitAddonRef.current = fitAddon;
-        searchAddonRef.current = searchAddon;
-        serializeAddonRef.current = serializeAddon;
+        try {
+          const webglAddon = new WebglAddon();
+          term.loadAddon(webglAddon);
+        } catch (e) {
+          console.warn("WebGL addon could not be loaded", e);
+        }
 
         // Open terminal in container
-        if (terminalRef.current) {
-          term.open(terminalRef.current);
-        }
+        if (!mounted) return;
+        term.open(terminalRef.current);
 
-        // Wait for next frame to ensure terminal is rendered
-        requestAnimationFrame(() => {
-          if (fitAddonRef.current) {
-            try {
-              fitAddonRef.current.fit();
-              setIsTerminalReady(true);
-            } catch (err) {
-              console.warn("Failed to fit terminal:", err);
-            }
-          }
+        // Ensure the terminal is properly sized
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        if (!mounted) return;
+        fitAddon.fit();
 
-          // Try to load WebGL addon after terminal is ready
-          try {
-            const webglAddon = new WebglAddon();
-            term.loadAddon(webglAddon);
-            webglAddonRef.current = webglAddon;
-          } catch (err) {
-            console.warn("WebGL addon could not be loaded:", err);
-          }
-        });
+        // Store references
+        xtermRef.current = term;
+        fitAddonRef.current = fitAddon;
 
-        // Write initial prompt
-        term.write(`${currentDirectory}> `);
+        // Initialize WebSocket connection
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const ws = new WebSocket(
+          `${protocol}//${window.location.hostname}:${window.location.port}/api/terminal/ws`,
+        );
+        wsRef.current = ws;
 
-        // Handle data input
-        term.onData((data) => {
-          if (data === "\r") {
-            // Enter key pressed
-            const command = currentCommand.trim();
-            if (command) {
-              // Add command to history
-              setCommandHistory((prev) => [...prev, command]);
-              setHistoryIndex(-1);
-              setCurrentCommand("");
-
-              // Execute command
-              term.writeln("");
-              executeCommand(command, term);
-            } else {
-              // Empty command, just show new prompt
-              term.write("\r\n" + currentDirectory + "> ");
-            }
-          } else if (data === "\u007F") {
-            // Backspace key pressed
-            if (currentCommand.length > 0) {
-              term.write("\b \b");
-              setCurrentCommand((prev) => prev.slice(0, -1));
-            }
-          } else if (data === "\u001B[A") {
-            // Up arrow key pressed
-            if (commandHistory.length > 0 && historyIndex < commandHistory.length - 1) {
-              const newIndex = historyIndex + 1;
-              const command = commandHistory[commandHistory.length - 1 - newIndex];
-              clearCurrentLine(term);
-              term.write(command);
-              setHistoryIndex(newIndex);
-              setCurrentCommand(command);
-            }
-          } else if (data === "\u001B[B") {
-            // Down arrow key pressed
-            if (historyIndex > 0) {
-              const newIndex = historyIndex - 1;
-              const command = commandHistory[commandHistory.length - 1 - newIndex];
-              clearCurrentLine(term);
-              term.write(command);
-              setHistoryIndex(newIndex);
-              setCurrentCommand(command);
-            } else if (historyIndex === 0) {
-              clearCurrentLine(term);
-              setHistoryIndex(-1);
-              setCurrentCommand("");
-            }
-          } else if (data === "\u0003") {
-            // Ctrl+C pressed
-            term.writeln("^C");
-            term.write(currentDirectory + "> ");
-            setCurrentCommand("");
-          } else if (data >= " " || data === "\t") {
-            // Printable characters
-            term.write(data);
-            setCurrentCommand((prev) => prev + data);
-          }
-        });
-
-        return () => {
-          term.dispose();
+        ws.onopen = () => {
+          if (!mounted) return;
+          term.write("\x1b[1;32mConnected to terminal server.\x1b[0m\r\n");
         };
+
+        ws.onmessage = (event) => {
+          if (!mounted) return;
+          try {
+            const message = JSON.parse(event.data);
+            if (message.type === "output") {
+              term.write(message.data);
+            }
+          } catch (e) {
+            console.warn("Error processing message:", e);
+          }
+        };
+
+        ws.onerror = () => {
+          if (!mounted) return;
+          term.write("\x1b[1;31mError connecting to terminal server.\x1b[0m\r\n");
+        };
+
+        ws.onclose = () => {
+          if (!mounted) return;
+          term.write("\x1b[1;31mDisconnected from terminal server.\x1b[0m\r\n");
+        };
+
+        // Handle terminal input
+        term.onData((data) => {
+          if (!mounted || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+          try {
+            wsRef.current.send(JSON.stringify({ type: "input", data }));
+          } catch (e) {
+            console.warn("Error sending data:", e);
+          }
+        });
+
+        // Handle terminal resize
+        resizeObserver = new ResizeObserver(() => {
+          if (!mounted || !fitAddonRef.current) return;
+          requestAnimationFrame(() => {
+            if (!mounted) return;
+            try {
+              fitAddonRef.current?.fit();
+              if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(
+                  JSON.stringify({
+                    type: "resize",
+                    cols: term.cols,
+                    rows: term.rows,
+                  }),
+                );
+              }
+            } catch (e) {
+              console.warn("Error handling resize:", e);
+            }
+          });
+        });
+
+        resizeObserver.observe(terminalRef.current);
       } catch (error) {
-        console.error("Failed to initialize terminal:", error);
+        console.error("Error initializing terminal:", error);
+        cleanup();
       }
     };
 
-    initializeTerminal();
-  }, [commandHistory, currentCommand, historyIndex, currentDirectory]);
-
-  // Handle window resize
-  useEffect(() => {
-    if (!isTerminalReady) return;
-
-    const handleResize = () => {
-      if (fitAddonRef.current) {
-        try {
-          fitAddonRef.current.fit();
-        } catch (err) {
-          console.warn("Failed to fit terminal:", err);
-        }
-      }
-    };
-
-    const resizeObserver = new ResizeObserver(handleResize);
-    if (terminalRef.current) {
-      resizeObserver.observe(terminalRef.current);
-    }
-
-    window.addEventListener("resize", handleResize);
+    initTerminal();
 
     return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener("resize", handleResize);
+      mounted = false;
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+      cleanup();
     };
-  }, [isTerminalReady]);
-
-  // Handle search
-  useEffect(() => {
-    if (isSearchVisible && searchAddonRef.current && searchTerm) {
-      searchAddonRef.current.findNext(searchTerm);
-    }
-  }, [searchTerm, isSearchVisible]);
-
-  const clearCurrentLine = (term: XTerm) => {
-    term.write("\r" + currentDirectory + "> ");
-    for (let i = 0; i < currentCommand.length; i++) {
-      term.write(" ");
-    }
-    term.write("\r" + currentDirectory + "> ");
-  };
-
-  const executeCommand = async (command: string, term: XTerm) => {
-    try {
-      const response = await fetch("/api/terminal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, cwd: currentDirectory }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to execute command");
-      }
-
-      const result: CommandResult = await response.json();
-
-      // Handle cd commands to update current directory
-      if (command.trim().startsWith("cd ")) {
-        const newPath = command.trim().slice(3);
-        // Let the server handle the actual path resolution
-        const cdResponse = await fetch("/api/terminal", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ command: "pwd", cwd: newPath }),
-        });
-
-        if (cdResponse.ok) {
-          const { output } = await cdResponse.json();
-          setCurrentDirectory(output.trim());
-        }
-      }
-
-      // Write output
-      if (result.output) {
-        term.writeln(result.output);
-      }
-
-      // Write error if any
-      if (result.error) {
-        term.writeln("\x1b[31m" + result.error + "\x1b[0m");
-      }
-
-      // Write new prompt
-      term.write(currentDirectory + "> ");
-    } catch (err) {
-      term.writeln(
-        "\x1b[31mError: " + (err instanceof Error ? err.message : "Unknown error") + "\x1b[0m",
-      );
-      term.write(currentDirectory + "> ");
-    }
-  };
-
-  const handleClear = () => {
-    if (xtermRef.current) {
-      xtermRef.current.clear();
-      xtermRef.current.write(currentDirectory + "> ");
-    }
-  };
-
-  const handleSave = () => {
-    if (xtermRef.current && serializeAddonRef.current) {
-      const content = serializeAddonRef.current.serialize();
-      const blob = new Blob([content], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "terminal-output.txt";
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-  };
+  }, [theme]);
 
   return (
-    <div className="relative h-full w-full bg-[var(--bg-darker)]">
-      <div className="flex items-center justify-between p-2 border-b border-[var(--border-color)]">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleClear}
-            className="px-2 py-1 rounded text-sm bg-[var(--bg-lighter)] hover:bg-[var(--bg-lightest)]"
-          >
-            Clear
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-2 py-1 rounded text-sm bg-[var(--bg-lighter)] hover:bg-[var(--bg-lightest)]"
-          >
-            Save Output
-          </button>
-          <button
-            onClick={() => setIsSearchVisible(!isSearchVisible)}
-            className="px-2 py-1 rounded text-sm bg-[var(--bg-lighter)] hover:bg-[var(--bg-lightest)]"
-          >
-            Search
-          </button>
-        </div>
-        {isSearchVisible && (
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search..."
-              className="px-2 py-1 rounded text-sm bg-[var(--bg-darker)] border border-[var(--border-color)]"
-            />
-            <button
-              onClick={() => searchAddonRef.current?.findNext(searchTerm)}
-              className="px-2 py-1 rounded text-sm bg-[var(--bg-lighter)] hover:bg-[var(--bg-lightest)]"
-            >
-              Next
-            </button>
-            <button
-              onClick={() => searchAddonRef.current?.findPrevious(searchTerm)}
-              className="px-2 py-1 rounded text-sm bg-[var(--bg-lighter)] hover:bg-[var(--bg-lightest)]"
-            >
-              Previous
-            </button>
-          </div>
-        )}
-      </div>
-      <div ref={terminalRef} className="h-full w-full" />
-    </div>
+    <div
+      ref={terminalRef}
+      className="h-full w-full" // Added w-full to ensure proper sizing
+      style={{ minHeight: "100px", minWidth: "100px" }} // Added minimum dimensions
+    />
   );
 }

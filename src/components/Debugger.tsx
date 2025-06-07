@@ -27,7 +27,11 @@ interface CallStackFrame {
   source: string;
 }
 
-export default function Debugger() {
+interface DebuggerProps {
+  workspaceId: string;
+}
+
+export default function Debugger({ workspaceId }: DebuggerProps) {
   const monaco = useMonaco();
   const [isDebugging, setIsDebugging] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
