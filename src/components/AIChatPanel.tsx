@@ -101,7 +101,7 @@ export default function AIChatPanel() {
   return (
     <div className="flex flex-col h-full bg-[var(--bg-dark)] border-l border-[var(--border-color)]">
       {/* Header */}
-      <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-darker)] backdrop-blur-sm bg-opacity-80">
+      <div className="p-2 border-b border-[var(--border-color)] bg-[var(--bg-darker)] backdrop-blur-sm bg-opacity-80">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">AI Assistant</h2>
           <div className="text-xs text-[var(--text-secondary)] px-2 py-1 rounded-full bg-[var(--bg-dark)] border border-[var(--border-color)]">
@@ -132,7 +132,7 @@ export default function AIChatPanel() {
               ])
             }
           >
-            Clear Chat
+            Clear
           </Button>
         </div>
       </div>

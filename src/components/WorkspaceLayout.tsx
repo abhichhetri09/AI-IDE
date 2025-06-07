@@ -1,16 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import FileExplorer from "@/components/FileExplorer";
-import Terminal from "@/components/Terminal";
+import TerminalComponent from "@/components/Terminal";
 import Header from "@/components/layout/Header";
-import ActivityBar from "@/components/layout/ActivityBar";
-import SearchPanel from "@/components/search/SearchPanel";
-import GitPanel from "@/components/GitPanel";
-import Debugger from "@/components/Debugger";
+import Sidebar from "@/components/layout/Sidebar";
+import { useTheme } from "@/hooks/useTheme";
+import { GripHorizontal } from "lucide-react";
 
 // Dynamically import components that use browser APIs
 const Editor = dynamic(() => import("@/components/editor/Editor"), {
@@ -36,15 +34,11 @@ interface WorkspaceLayoutProps {
 
 export default function WorkspaceLayout({ workspace }: WorkspaceLayoutProps) {
   const [chatWidth, setChatWidth] = useState(300);
-  const [terminalHeight, setTerminalHeight] = useState(300);
-  const [sidebarWidth, setSidebarWidth] = useState(240);
-  const [isDark, setIsDark] = useState(true);
-  const [activePanel, setActivePanel] = useState("explorer");
-
-  const handleThemeToggle = () => {
-    setIsDark(!isDark);
-    // Add theme switching logic here
-  };
+  const [terminalHeight, setTerminalHeight] = useState(200);
+  const [isResizingTerminal, setIsResizingTerminal] = useState(false);
+  const [isTerminalVisible, setIsTerminalVisible] = useState(true);
+  const terminalContainerRef = useRef<HTMLDivElement>(null);
+  const { toggleTheme } = useTheme();
 
   const handleNewFile = () => {
     // Add new file logic here
@@ -54,143 +48,101 @@ export default function WorkspaceLayout({ workspace }: WorkspaceLayoutProps) {
     // Add save logic here
   };
 
-  const renderSidePanel = () => {
-    switch (activePanel) {
-      case "explorer":
-        return <FileExplorer workspaceId={workspace.id} />;
-      case "search":
-        return <SearchPanel workspaceId={workspace.id} />;
-      case "git":
-        return <GitPanel workspaceId={workspace.id} />;
-      case "debug":
-        return <Debugger workspaceId={workspace.id} />;
-      case "extensions":
-        return (
-          <div className="p-4">
-            <h2 className="text-lg font-medium mb-4">Extensions</h2>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Extension management coming soon...
-            </p>
-          </div>
-        );
-      default:
-        return null;
+  const startResizingTerminal = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingTerminal(true);
+  }, []);
+
+  const stopResizingTerminal = useCallback(() => {
+    setIsResizingTerminal(false);
+  }, []);
+
+  const handleTerminalResize = useCallback(
+    (e: MouseEvent) => {
+      if (!isResizingTerminal || !terminalContainerRef.current) return;
+
+      const containerRect = terminalContainerRef.current.getBoundingClientRect();
+      const containerBottom = containerRect.bottom;
+      const newHeight = Math.max(100, containerBottom - e.clientY);
+
+      setTerminalHeight(newHeight);
+    },
+    [isResizingTerminal],
+  );
+
+  // Add event listeners for terminal resizing
+  useEffect(() => {
+    if (isResizingTerminal) {
+      window.addEventListener("mousemove", handleTerminalResize);
+      window.addEventListener("mouseup", stopResizingTerminal);
     }
-  };
+
+    return () => {
+      window.removeEventListener("mousemove", handleTerminalResize);
+      window.removeEventListener("mouseup", stopResizingTerminal);
+    };
+  }, [isResizingTerminal, handleTerminalResize, stopResizingTerminal]);
 
   return (
     <div className="flex flex-col h-screen w-full bg-[var(--bg-dark)]">
       {/* Header */}
-      <Header onThemeToggle={handleThemeToggle} onNewFile={handleNewFile} onSave={handleSave} />
+      <Header onThemeToggle={toggleTheme} onNewFile={handleNewFile} onSave={handleSave} />
 
       {/* Main Content */}
       <div className="flex flex-1 min-h-0">
-        {/* Activity Bar */}
-        <ActivityBar activePanel={activePanel} onPanelChange={setActivePanel} />
-
-        {/* Side Panel */}
-        <div
-          className="relative h-full bg-[var(--bg-darker)] border-r border-[var(--border-color)]"
-          style={{ width: sidebarWidth, minWidth: sidebarWidth }}
-        >
-          <div className="h-full overflow-hidden">
-            <ErrorBoundary>{renderSidePanel()}</ErrorBoundary>
-          </div>
-          {/* Resizer */}
-          <div
-            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[var(--primary)] transition-colors"
-            onMouseDown={(e) => {
-              const startX = e.clientX;
-              const startWidth = sidebarWidth;
-
-              const handleMouseMove = (e: MouseEvent) => {
-                const delta = e.clientX - startX;
-                setSidebarWidth(Math.max(160, Math.min(480, startWidth + delta)));
-              };
-
-              const handleMouseUp = () => {
-                document.removeEventListener("mousemove", handleMouseMove);
-                document.removeEventListener("mouseup", handleMouseUp);
-              };
-
-              document.addEventListener("mousemove", handleMouseMove);
-              document.addEventListener("mouseup", handleMouseUp);
-            }}
-          />
-        </div>
+        {/* Sidebar */}
+        <Sidebar workspaceId={workspace.id} />
 
         {/* Editor and Terminal */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Editor */}
           <div className="flex-1 min-h-0">
             <ErrorBoundary>
-              <Editor workspaceId={workspace.id} />
+              <Editor />
             </ErrorBoundary>
           </div>
 
-          {/* Terminal */}
+          {/* Terminal Container */}
           <div
-            className="relative bg-[var(--bg-darker)] border-t border-[var(--border-color)]"
-            style={{ height: terminalHeight, minHeight: terminalHeight }}
+            ref={terminalContainerRef}
+            className={`relative flex flex-col transition-all duration-200 ease-in-out ${
+              isTerminalVisible ? "" : "h-0 overflow-hidden"
+            }`}
+            style={{ height: isTerminalVisible ? terminalHeight : 0 }}
           >
+            {/* Terminal Resize Handle */}
             <div
-              className="absolute left-0 right-0 top-0 h-1 cursor-row-resize hover:bg-[var(--primary)] transition-colors"
-              onMouseDown={(e) => {
-                const startY = e.clientY;
-                const startHeight = terminalHeight;
+              className="absolute top-0 left-0 right-0 h-2 bg-[var(--bg-darker)] cursor-row-resize flex items-center justify-center group z-10 hover:bg-[var(--bg-lightest)]"
+              onMouseDown={startResizingTerminal}
+            >
+              <GripHorizontal
+                size={14}
+                className="text-[var(--text-secondary)] opacity-0 group-hover:opacity-100 transition-opacity"
+              />
+            </div>
 
-                const handleMouseMove = (e: MouseEvent) => {
-                  const delta = startY - e.clientY;
-                  setTerminalHeight(Math.max(100, Math.min(800, startHeight + delta)));
-                };
+            {/* Terminal Header */}
+            <div className="h-9 bg-[var(--bg-darker)] border-t border-[var(--border-color)] flex items-center px-4">
+              <h3 className="text-sm font-medium text-[var(--text-secondary)]">Terminal</h3>
+              <button
+                className="ml-auto text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                onClick={() => setIsTerminalVisible(!isTerminalVisible)}
+              >
+                {isTerminalVisible ? "Hide" : "Show"}
+              </button>
+            </div>
 
-                const handleMouseUp = () => {
-                  document.removeEventListener("mousemove", handleMouseMove);
-                  document.removeEventListener("mouseup", handleMouseUp);
-                };
-
-                document.addEventListener("mousemove", handleMouseMove);
-                document.addEventListener("mouseup", handleMouseUp);
-              }}
-            />
-            <div className="h-full overflow-hidden">
-              <ErrorBoundary>
-                <Terminal workspaceId={workspace.id} />
-              </ErrorBoundary>
+            {/* Terminal Content */}
+            <div className="flex-1 min-h-0 bg-[var(--bg-darker)]">
+              <TerminalComponent />
             </div>
           </div>
         </div>
 
         {/* AI Chat Panel */}
-        <div
-          className="relative h-full bg-[var(--bg-darker)] border-l border-[var(--border-color)]"
-          style={{ width: chatWidth, minWidth: chatWidth }}
-        >
-          <div
-            className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[var(--primary)] transition-colors"
-            onMouseDown={(e) => {
-              const startX = e.clientX;
-              const startWidth = chatWidth;
-
-              const handleMouseMove = (e: MouseEvent) => {
-                const delta = startX - e.clientX;
-                setChatWidth(Math.max(200, Math.min(800, startWidth + delta)));
-              };
-
-              const handleMouseUp = () => {
-                document.removeEventListener("mousemove", handleMouseMove);
-                document.removeEventListener("mouseup", handleMouseUp);
-              };
-
-              document.addEventListener("mousemove", handleMouseMove);
-              document.addEventListener("mouseup", handleMouseUp);
-            }}
-          />
-          <div className="h-full overflow-hidden">
-            <ErrorBoundary>
-              <AIChatPanel workspaceId={workspace.id} />
-            </ErrorBoundary>
-          </div>
+        <div style={{ width: chatWidth }}>
+          <ErrorBoundary>
+            <AIChatPanel />
+          </ErrorBoundary>
         </div>
       </div>
     </div>

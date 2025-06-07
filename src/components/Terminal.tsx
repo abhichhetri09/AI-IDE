@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { Terminal as XTerm } from "xterm";
-import { FitAddon } from "@xterm/addon-fit";
-import { WebLinksAddon } from "@xterm/addon-web-links";
-import { WebglAddon } from "@xterm/addon-webgl";
-import { SearchAddon } from "@xterm/addon-search";
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "@/hooks/useTheme";
-import "xterm/css/xterm.css";
+import LoadingSpinner from "./LoadingSpinner";
+
+// We'll load xterm and its addons dynamically in useEffect
+let XTerminal: any;
+let FitAddon: any;
+let WebLinksAddon: any;
+let WebglAddon: any;
+let SearchAddon: any;
 
 declare global {
   interface Window {
@@ -20,12 +22,59 @@ declare global {
   }
 }
 
-export default function Terminal() {
+interface TerminalProps {}
+
+const TerminalComponent: React.FC<TerminalProps> = () => {
   const terminalRef = useRef<HTMLDivElement>(null);
-  const xtermRef = useRef<XTerm | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
+  const xtermRef = useRef<any>(null);
+  const fitAddonRef = useRef<any>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const { theme } = useTheme();
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load xterm and addons
+  useEffect(() => {
+    const loadDeps = async () => {
+      try {
+        // Import xterm and its CSS
+        const xterm = await import("xterm");
+        XTerminal = xterm.Terminal;
+
+        // Import CSS
+        const style = document.createElement("link");
+        style.rel = "stylesheet";
+        style.href = "https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css";
+        document.head.appendChild(style);
+
+        // Import addons
+        const fitAddon = await import("@xterm/addon-fit");
+        FitAddon = fitAddon.FitAddon;
+
+        const webLinksAddon = await import("@xterm/addon-web-links");
+        WebLinksAddon = webLinksAddon.WebLinksAddon;
+
+        const webglAddon = await import("@xterm/addon-webgl");
+        WebglAddon = webglAddon.WebglAddon;
+
+        const searchAddon = await import("@xterm/addon-search");
+        SearchAddon = searchAddon.SearchAddon;
+
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Failed to load terminal dependencies:", error);
+      }
+    };
+
+    loadDeps();
+
+    // Cleanup CSS
+    return () => {
+      const style = document.querySelector('link[href*="xterm.min.css"]');
+      if (style) {
+        style.remove();
+      }
+    };
+  }, []);
 
   // Cleanup function
   const cleanup = () => {
@@ -50,12 +99,13 @@ export default function Terminal() {
     }
   };
 
+  // Initialize terminal after dependencies are loaded
   useEffect(() => {
     let mounted = true;
     let resizeObserver: ResizeObserver | null = null;
 
     const initTerminal = async () => {
-      if (!terminalRef.current || xtermRef.current || !mounted) return;
+      if (!terminalRef.current || xtermRef.current || !mounted || !XTerminal) return;
 
       try {
         // Wait for the container to be properly sized
@@ -66,14 +116,14 @@ export default function Terminal() {
         }
 
         // Initialize xterm.js
-        const term = new XTerm({
+        const term = new XTerminal({
           fontFamily: "'JetBrains Mono', monospace",
           fontSize: 14,
           lineHeight: 1.2,
           cursorBlink: true,
           allowProposedApi: true,
-          rows: Math.floor(clientHeight / 17), // Approximate row height
-          cols: Math.floor(clientWidth / 9), // Approximate column width
+          rows: Math.floor((clientHeight - 20) / 17), // Account for padding
+          cols: Math.floor((clientWidth - 20) / 9), // Account for padding
           theme:
             theme === "dark"
               ? {
@@ -81,12 +131,44 @@ export default function Terminal() {
                   foreground: "#c0caf5",
                   cursor: "#c0caf5",
                   selectionBackground: "#515c7e40",
+                  black: "#15161e",
+                  red: "#f7768e",
+                  green: "#9ece6a",
+                  yellow: "#e0af68",
+                  blue: "#7aa2f7",
+                  magenta: "#bb9af7",
+                  cyan: "#7dcfff",
+                  white: "#a9b1d6",
+                  brightBlack: "#414868",
+                  brightRed: "#f7768e",
+                  brightGreen: "#9ece6a",
+                  brightYellow: "#e0af68",
+                  brightBlue: "#7aa2f7",
+                  brightMagenta: "#bb9af7",
+                  brightCyan: "#7dcfff",
+                  brightWhite: "#c0caf5",
                 }
               : {
                   background: "#ffffff",
                   foreground: "#1e293b",
                   cursor: "#1e293b",
                   selectionBackground: "#3b82f620",
+                  black: "#1e293b",
+                  red: "#ef4444",
+                  green: "#22c55e",
+                  yellow: "#f59e0b",
+                  blue: "#3b82f6",
+                  magenta: "#d946ef",
+                  cyan: "#06b6d4",
+                  white: "#e2e8f0",
+                  brightBlack: "#475569",
+                  brightRed: "#ef4444",
+                  brightGreen: "#22c55e",
+                  brightYellow: "#f59e0b",
+                  brightBlue: "#3b82f6",
+                  brightMagenta: "#d946ef",
+                  brightCyan: "#06b6d4",
+                  brightWhite: "#f8fafc",
                 },
         });
 
@@ -102,6 +184,9 @@ export default function Terminal() {
         try {
           const webglAddon = new WebglAddon();
           term.loadAddon(webglAddon);
+          webglAddon.onContextLoss(() => {
+            webglAddon.dispose();
+          });
         } catch (e) {
           console.warn("WebGL addon could not be loaded", e);
         }
@@ -152,9 +237,8 @@ export default function Terminal() {
           if (!mounted) return;
           term.write("\x1b[1;31mDisconnected from terminal server.\x1b[0m\r\n");
         };
-
         // Handle terminal input
-        term.onData((data) => {
+        term.onData((data: string) => {
           if (!mounted || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
           try {
             wsRef.current.send(JSON.stringify({ type: "input", data }));
@@ -163,10 +247,13 @@ export default function Terminal() {
           }
         });
 
-        // Handle terminal resize
+        // Handle terminal resize with debounce
+        let resizeTimeout: NodeJS.Timeout;
         resizeObserver = new ResizeObserver(() => {
           if (!mounted || !fitAddonRef.current) return;
-          requestAnimationFrame(() => {
+
+          clearTimeout(resizeTimeout);
+          resizeTimeout = setTimeout(() => {
             if (!mounted) return;
             try {
               fitAddonRef.current?.fit();
@@ -182,7 +269,7 @@ export default function Terminal() {
             } catch (e) {
               console.warn("Error handling resize:", e);
             }
-          });
+          }, 50); // Debounce resize events
         });
 
         resizeObserver.observe(terminalRef.current);
@@ -192,7 +279,9 @@ export default function Terminal() {
       }
     };
 
-    initTerminal();
+    if (!isLoading) {
+      initTerminal();
+    }
 
     return () => {
       mounted = false;
@@ -201,13 +290,19 @@ export default function Terminal() {
       }
       cleanup();
     };
-  }, [theme]);
+  }, [theme, isLoading]);
+
+  if (isLoading) {
+    return (
+      <div className="h-full w-full flex items-center justify-center bg-[var(--bg-darker)]">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
-    <div
-      ref={terminalRef}
-      className="h-full w-full" // Added w-full to ensure proper sizing
-      style={{ minHeight: "100px", minWidth: "100px" }} // Added minimum dimensions
-    />
+    <div ref={terminalRef} className="h-full w-full p-2.5 overflow-hidden bg-[var(--bg-darker)]" />
   );
-}
+};
+
+export default TerminalComponent;

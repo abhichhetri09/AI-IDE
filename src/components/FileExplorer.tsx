@@ -3,7 +3,18 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
-import { useFile } from "@/contexts/FileContext";
+import { useFile } from "@/hooks/useFile";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  getWorkspaceHandle,
+  listWorkspaceFiles,
+  createWorkspaceFile,
+  createWorkspaceDirectory,
+  deleteWorkspaceEntry,
+} from "@/lib/workspace";
 
 interface FileItem {
   name: string;
@@ -18,26 +29,23 @@ interface ContextMenuProps {
   y: number;
   item: FileItem;
   onClose: () => void;
-  onNewFile: (path: string) => void;
-  onNewFolder: (path: string) => void;
   onDelete: (path: string) => void;
   onRename: (oldPath: string, newName: string) => void;
 }
 
 interface FileExplorerProps {
-  onFileSelect: (path: string) => void;
+  workspaceId: string;
 }
 
-const ContextMenu = ({
-  x,
-  y,
-  item,
-  onClose,
-  onNewFile,
-  onNewFolder,
-  onDelete,
-  onRename,
-}: ContextMenuProps) => {
+interface CreateDialogProps {
+  type: "file" | "folder";
+  parentPath: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onCreate: (name: string) => void;
+}
+
+const ContextMenu = ({ x, y, item, onClose, onDelete, onRename }: ContextMenuProps) => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [newName, setNewName] = useState(item.name);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -76,22 +84,6 @@ const ContextMenu = ({
         />
       ) : (
         <>
-          {item.type === "directory" && (
-            <>
-              <button
-                onClick={() => onNewFile(item.path)}
-                className="block w-full px-4 py-1 text-left text-sm hover:bg-[var(--bg-darker)]"
-              >
-                New File
-              </button>
-              <button
-                onClick={() => onNewFolder(item.path)}
-                className="block w-full px-4 py-1 text-left text-sm hover:bg-[var(--bg-darker)]"
-              >
-                New Folder
-              </button>
-            </>
-          )}
           <button
             onClick={() => setIsRenaming(true)}
             className="block w-full px-4 py-1 text-left text-sm hover:bg-[var(--bg-darker)]"
@@ -113,7 +105,54 @@ const ContextMenu = ({
   );
 };
 
-export default function FileExplorer() {
+const CreateDialog = ({ type, parentPath, isOpen, onClose, onCreate }: CreateDialogProps) => {
+  const [name, setName] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (name.trim()) {
+      onCreate(name.trim());
+      setName("");
+      onClose();
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create New {type === "file" ? "File" : "Folder"}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={type === "file" ? "filename.txt" : "folder-name"}
+              autoFocus
+            />
+            {parentPath && (
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                Will be created in: {parentPath}
+              </p>
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose} type="button">
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!name.trim()}>
+              Create
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default function FileExplorer({ workspaceId }: FileExplorerProps) {
   const { openFile } = useFile();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,19 +163,48 @@ export default function FileExplorer() {
     item: FileItem;
   } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const router = useRouter();
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createDialogType, setCreateDialogType] = useState<"file" | "folder">("file");
+  const [createDialogParentPath, setCreateDialogParentPath] = useState("");
 
   useEffect(() => {
     fetchFiles();
-  }, []);
+  }, [workspaceId]);
 
   const fetchFiles = async () => {
     try {
-      const response = await fetch("/api/files");
-      const data = await response.json();
-      setFiles(data);
-      setLoading(false);
+      setLoading(true);
+      setError(null);
+
+      const dirHandle = await getWorkspaceHandle(workspaceId);
+      if (!dirHandle) {
+        throw new Error("Could not access workspace directory. Please select it again.");
+      }
+
+      const files = await listWorkspaceFiles(dirHandle);
+      if (!files || files.length === 0) {
+        setFiles([]);
+        setError("This workspace is empty. Create a new file to get started.");
+      } else {
+        setFiles(files);
+        setError(null);
+      }
     } catch (err) {
-      setError("Failed to load files");
+      const errorMessage = err instanceof Error ? err.message : "Failed to load files";
+      setError(errorMessage);
+      setFiles([]);
+
+      // If it's a permission error, show a more helpful message
+      if (errorMessage.includes("permission") || errorMessage.includes("access")) {
+        toast.error("Permission denied. Please select the workspace folder again.", {
+          action: {
+            label: "Select Folder",
+            onClick: () => router.push(`/workspace/${workspaceId}`),
+          },
+        });
+      }
+    } finally {
       setLoading(false);
     }
   };
@@ -150,82 +218,79 @@ export default function FileExplorer() {
     });
   };
 
-  const handleNewFile = async (parentPath: string) => {
-    const name = prompt("Enter file name:");
-    if (!name) return;
-
-    try {
-      const response = await fetch("/api/files", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "file",
-          parentPath,
-          name,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to create file");
-      fetchFiles();
-    } catch (err) {
-      setError("Failed to create file");
-    }
-  };
-
-  const handleNewFolder = async (parentPath: string) => {
-    const name = prompt("Enter folder name:");
-    if (!name) return;
-
-    try {
-      const response = await fetch("/api/files", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "directory",
-          parentPath,
-          name,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to create folder");
-      fetchFiles();
-    } catch (err) {
-      setError("Failed to create folder");
-    }
-  };
-
   const handleDelete = async (path: string) => {
     if (!confirm("Are you sure you want to delete this item?")) return;
 
     try {
-      const response = await fetch("/api/files", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path }),
-      });
+      const dirHandle = await getWorkspaceHandle(workspaceId);
+      if (!dirHandle) {
+        throw new Error("Could not access workspace directory");
+      }
 
-      if (!response.ok) throw new Error("Failed to delete item");
+      await deleteWorkspaceEntry(dirHandle, path);
       fetchFiles();
     } catch (err) {
-      setError("Failed to delete item");
+      toast.error("Failed to delete item");
     }
   };
 
   const handleRename = async (oldPath: string, newName: string) => {
     try {
-      const response = await fetch("/api/files", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          oldPath,
-          newName,
-        }),
-      });
+      const dirHandle = await getWorkspaceHandle(workspaceId);
+      if (!dirHandle) {
+        throw new Error("Could not access workspace directory");
+      }
 
-      if (!response.ok) throw new Error("Failed to rename item");
+      // Get the parent path and create the new path
+      const parts = oldPath.split("/");
+      const oldName = parts.pop()!;
+      const parentPath = parts.join("/");
+      const newPath = parentPath ? `${parentPath}/${newName}` : newName;
+
+      // Get the source item
+      let currentDir = dirHandle;
+      for (const part of parts) {
+        if (!part) continue;
+        currentDir = await currentDir.getDirectoryHandle(part);
+      }
+
+      const sourceItem = contextMenu?.item;
+      if (!sourceItem) return;
+
+      if (sourceItem.type === "file") {
+        // For files, read content and create new file
+        const fileHandle = await currentDir.getFileHandle(oldName);
+        const file = await fileHandle.getFile();
+        const content = await file.text();
+        await createWorkspaceFile(dirHandle, newPath, content);
+      } else {
+        // For directories, create new directory and copy contents
+        await createWorkspaceDirectory(dirHandle, newPath);
+
+        const copyContents = async (sourceDir: FileSystemDirectoryHandle, targetPath: string) => {
+          for await (const entry of sourceDir.values()) {
+            const entryPath = `${targetPath}/${entry.name}`;
+            if (entry.kind === "file") {
+              const fileHandle = await sourceDir.getFileHandle(entry.name);
+              const file = await fileHandle.getFile();
+              const content = await file.text();
+              await createWorkspaceFile(dirHandle, entryPath, content);
+            } else {
+              await createWorkspaceDirectory(dirHandle, entryPath);
+              await copyContents(entry, entryPath);
+            }
+          }
+        };
+
+        const sourceDir = await currentDir.getDirectoryHandle(oldName);
+        await copyContents(sourceDir, newPath);
+      }
+
+      // Delete the old item
+      await deleteWorkspaceEntry(dirHandle, oldPath);
       fetchFiles();
     } catch (err) {
-      setError("Failed to rename item");
+      toast.error("Failed to rename item");
     }
   };
 
@@ -237,19 +302,85 @@ export default function FileExplorer() {
     if (!sourcePath || sourcePath === targetPath) return;
 
     try {
-      const response = await fetch("/api/files/move", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sourcePath,
-          targetPath,
-        }),
-      });
+      const dirHandle = await getWorkspaceHandle(workspaceId);
+      if (!dirHandle) {
+        throw new Error("Could not access workspace directory");
+      }
 
-      if (!response.ok) throw new Error("Failed to move item");
+      // Get source and target paths
+      const sourceParts = sourcePath.split("/");
+      const sourceName = sourceParts.pop()!;
+      const sourceParentPath = sourceParts.join("/");
+
+      const targetParts = targetPath.split("/");
+      const targetName = targetParts.pop()!;
+      let newPath = targetPath;
+
+      // If target is a directory, move inside it
+      const targetItem = files.find((item) => item.path === targetPath);
+      if (targetItem?.type === "directory") {
+        newPath = `${targetPath}/${sourceName}`;
+      } else {
+        // If target is a file, move to its parent directory
+        newPath = `${targetParts.join("/")}/${sourceName}`;
+      }
+
+      // Navigate to source directory
+      let sourceDir = dirHandle;
+      for (const part of sourceParts) {
+        if (!part) continue;
+        sourceDir = await sourceDir.getDirectoryHandle(part);
+      }
+
+      // Get the source item
+      const sourceItem = await (sourceName.includes(".")
+        ? sourceDir.getFileHandle(sourceName)
+        : sourceDir.getDirectoryHandle(sourceName));
+
+      if (sourceItem.kind === "file") {
+        // For files, read content and create new file
+        const file = await (sourceItem as FileSystemFileHandle).getFile();
+        const content = await file.text();
+        await createWorkspaceFile(dirHandle, newPath, content);
+      } else {
+        // For directories, create new directory and copy contents
+        await createWorkspaceDirectory(dirHandle, newPath);
+
+        const copyContents = async (sourceDir: FileSystemDirectoryHandle, targetPath: string) => {
+          for await (const entry of sourceDir.values()) {
+            const entryPath = `${targetPath}/${entry.name}`;
+            if (entry.kind === "file") {
+              const fileHandle = await sourceDir.getFileHandle(entry.name);
+              const file = await fileHandle.getFile();
+              const content = await file.text();
+              await createWorkspaceFile(dirHandle, entryPath, content);
+            } else {
+              await createWorkspaceDirectory(dirHandle, entryPath);
+              await copyContents(entry, entryPath);
+            }
+          }
+        };
+
+        await copyContents(sourceItem as FileSystemDirectoryHandle, newPath);
+      }
+
+      // Delete the source item
+      await deleteWorkspaceEntry(dirHandle, sourcePath);
       fetchFiles();
     } catch (err) {
-      setError("Failed to move item");
+      toast.error("Failed to move item");
+    }
+  };
+
+  const handleFileClick = async (path: string) => {
+    try {
+      if (path) {
+        const content = await openFile(workspaceId, path);
+        // You might want to do something with the content here
+        // For example, open it in an editor
+      }
+    } catch (err) {
+      toast.error("Failed to open file");
     }
   };
 
@@ -345,12 +476,6 @@ export default function FileExplorer() {
     }
   };
 
-  const handleFileClick = async (path: string) => {
-    if (path) {
-      await openFile(path);
-    }
-  };
-
   const renderFileTree = (items: FileItem[], level = 0) => {
     return items.map((item) => (
       <div key={item.path} style={{ paddingLeft: `${level * 16}px` }}>
@@ -381,8 +506,8 @@ export default function FileExplorer() {
           }}
           onDragEnd={() => setIsDragging(false)}
         >
-          <span className="mr-2">{getFileIcon(item)}</span>
-          <span className="text-sm text-[var(--text-primary)] truncate">{item.name}</span>
+          <span className="mr-2 flex-shrink-0">{getFileIcon(item)}</span>
+          <span className="text-sm text-[var(--text-primary)] truncate flex-1">{item.name}</span>
         </div>
         {item.type === "directory" && item.isOpen && item.children && (
           <div>{renderFileTree(item.children, level + 1)}</div>
@@ -392,18 +517,44 @@ export default function FileExplorer() {
   };
 
   return (
-    <div className="h-full overflow-auto p-2">
-      {loading ? (
-        <div className="flex items-center justify-center h-full">
-          <div className="animate-spin rounded-full h-6 w-6 border-2 border-[var(--primary)] border-t-transparent" />
-        </div>
-      ) : error ? (
-        <div className="text-[var(--error)] text-sm p-4">{error}</div>
-      ) : files.length === 0 ? (
-        <div className="text-[var(--text-secondary)] text-sm p-4">No files found</div>
-      ) : (
-        <div>{renderFileTree(files)}</div>
-      )}
+    <div className="h-full flex flex-col">
+      {/* File Tree */}
+      <div className="flex-1 overflow-auto">
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="animate-spin rounded-full h-6 w-6 border-2 border-[var(--primary)] border-t-transparent" />
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+            <p className="text-[var(--error)] mb-4">{error}</p>
+            <Button
+              variant="outline"
+              onClick={fetchFiles}
+              className="hover:text-[var(--primary)] hover:border-[var(--primary)]"
+            >
+              Try Again
+            </Button>
+          </div>
+        ) : files.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+            <p className="text-[var(--text-secondary)] mb-4">No files found</p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCreateDialogType("file");
+                setCreateDialogParentPath("");
+                setCreateDialogOpen(true);
+              }}
+              className="hover:text-[var(--primary)] hover:border-[var(--primary)]"
+            >
+              Create File
+            </Button>
+          </div>
+        ) : (
+          <div className="py-1">{renderFileTree(files)}</div>
+        )}
+      </div>
+
       {contextMenu &&
         createPortal(
           <ContextMenu
@@ -411,13 +562,38 @@ export default function FileExplorer() {
             y={contextMenu.y}
             item={contextMenu.item}
             onClose={() => setContextMenu(null)}
-            onNewFile={handleNewFile}
-            onNewFolder={handleNewFolder}
             onDelete={handleDelete}
             onRename={handleRename}
           />,
           document.body,
         )}
+
+      <CreateDialog
+        type={createDialogType}
+        parentPath={createDialogParentPath}
+        isOpen={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        onCreate={async (name) => {
+          const dirHandle = await getWorkspaceHandle(workspaceId);
+          if (!dirHandle) return;
+
+          const path = createDialogParentPath ? `${createDialogParentPath}/${name}` : name;
+
+          try {
+            if (createDialogType === "file") {
+              await createWorkspaceFile(dirHandle, path);
+            } else {
+              await createWorkspaceDirectory(dirHandle, path);
+            }
+            await fetchFiles();
+            toast.success(
+              `${createDialogType === "file" ? "File" : "Folder"} created successfully`,
+            );
+          } catch (err) {
+            toast.error(`Failed to create ${createDialogType}`);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import WorkspaceLayout from "@/components/WorkspaceLayout";
 
@@ -10,6 +10,7 @@ interface Workspace {
   path: string;
   created: string;
   modified: string;
+  name?: string;
 }
 
 export default function WorkspacePage() {
@@ -19,34 +20,65 @@ export default function WorkspacePage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchWorkspace = async () => {
       try {
         if (params.id === "default") {
-          setWorkspace({
-            id: "default",
-            path: "/",
-            created: new Date().toISOString(),
-            modified: new Date().toISOString(),
-          });
-          setIsLoading(false);
+          if (isMounted) {
+            setWorkspace({
+              id: "default",
+              path: "/",
+              created: new Date().toISOString(),
+              modified: new Date().toISOString(),
+            });
+            setIsLoading(false);
+          }
           return;
         }
 
+        console.log("Fetching workspace:", params.id);
         const response = await fetch(`/api/workspaces/${params.id}`);
+
         if (!response.ok) {
-          throw new Error("Failed to fetch workspace");
+          const errorData = await response.json();
+          console.error("Workspace API error:", errorData);
+
+          // If workspace not found or directory not found, clean up the workspace
+          if (response.status === 404) {
+            // Clean up workspace handles
+            const handles = JSON.parse(localStorage.getItem("workspace_handles") || "{}");
+            delete handles[params.id];
+            localStorage.setItem("workspace_handles", JSON.stringify(handles));
+
+            // Clean up memory handles
+            if (window._workspace_handles) {
+              delete window._workspace_handles[params.id];
+            }
+          }
+
+          throw new Error(errorData.error || "Failed to fetch workspace");
         }
 
         const data = await response.json();
-        setWorkspace(data);
-        setIsLoading(false);
+        console.log("Workspace data:", data);
+        if (isMounted) {
+          setWorkspace(data);
+          setIsLoading(false);
+        }
       } catch (error) {
-        toast.error("Failed to load workspace");
-        router.push("/");
+        console.error("Error loading workspace:", error);
+        if (isMounted) {
+          toast.error(error instanceof Error ? error.message : "Failed to load workspace");
+          router.push("/");
+        }
       }
     };
 
     fetchWorkspace();
+
+    return () => {
+      isMounted = false;
+    };
   }, [params.id, router]);
 
   if (isLoading) {
